@@ -9,7 +9,7 @@ const Auth: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { login, register } = useAuth();
-  
+
   const queryParams = new URLSearchParams(location.search);
   const initialMode = queryParams.get('mode') === 'signup' ? false : true;
 
@@ -18,7 +18,8 @@ const Auth: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [role, setRole] = useState<UserRole>('Student');
+
+  // Role selection removed - defaults to 'Student' on backend
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -28,24 +29,25 @@ const Auth: React.FC = () => {
     if (mode === 'login') setIsLogin(true);
   }, [location.search]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
 
-    setTimeout(() => {
+    try {
       if (isLogin) {
-        if (login(email, password)) {
+        const result = await login(email, password);
+        if (result) {
           navigate('/');
         } else {
-          setError('Invalid email or password. Hint: Try admin@ruet.ac.bd / password123');
+          setError('Invalid email or password.');
         }
       } else {
-        register({
+        await register({
           name,
-          role,
+          role: 'Student', // Defaulting to Student for now as per schema
           email,
-          password, // Store password on registration
+          password,
           department: 'General',
           batch: '2024',
           avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`,
@@ -57,8 +59,11 @@ const Auth: React.FC = () => {
         });
         navigate('/');
       }
+    } catch (err) {
+      setError('Something went wrong. Please try again.');
+    } finally {
       setIsLoading(false);
-    }, 800);
+    }
   };
 
   return (
@@ -68,11 +73,11 @@ const Auth: React.FC = () => {
       <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-indigo-100/40 rounded-full blur-[100px] -z-10 -translate-x-1/3 translate-y-1/3"></div>
 
       <div className="w-full max-w-[1000px] glass rounded-[3rem] shadow-2xl overflow-hidden flex flex-col lg:flex-row border border-white/40">
-        
+
         {/* Visual Brand Panel */}
         <div className="lg:w-[45%] bg-slate-900 p-10 md:p-16 text-white flex flex-col justify-between relative overflow-hidden">
           <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-br from-blue-600/30 via-transparent to-indigo-900/40 pointer-events-none"></div>
-          
+
           <div className="relative z-10">
             <Link to="/" className="flex items-center gap-3 mb-16 group">
               <div className="gradient-bg p-2.5 rounded-2xl text-white shadow-xl group-hover:scale-110 transition-transform">
@@ -80,7 +85,7 @@ const Auth: React.FC = () => {
               </div>
               <span className="font-black text-2xl tracking-tighter">RUET<span className="text-blue-400">Connect</span></span>
             </Link>
-            
+
             <div className="space-y-6">
               <h2 className="text-4xl md:text-5xl font-extrabold leading-[1.15] tracking-tight">
                 {isLogin ? "Welcome back to the family." : "Join our world-class community."}
@@ -92,16 +97,16 @@ const Auth: React.FC = () => {
           </div>
 
           <div className="relative z-10 pt-10">
-             <div className="flex -space-x-3 mb-6">
-                {[1,2,3,4,5].map(i => (
-                  <img key={i} src={`https://i.pravatar.cc/150?u=ruet${i}`} className="w-12 h-12 rounded-2xl border-2 border-slate-900 shadow-xl object-cover" />
-                ))}
-                <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-xs font-bold shadow-xl border-2 border-slate-900">+20k</div>
-             </div>
-             <p className="text-sm text-slate-500 font-semibold flex items-center gap-2">
-               <ShieldCheck size={16} className="text-blue-400" />
-               Trusted by engineers worldwide.
-             </p>
+            <div className="flex -space-x-3 mb-6">
+              {[1, 2, 3, 4, 5].map(i => (
+                <img key={i} src={`https://i.pravatar.cc/150?u=ruet${i}`} className="w-12 h-12 rounded-2xl border-2 border-slate-900 shadow-xl object-cover" />
+              ))}
+              <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-xs font-bold shadow-xl border-2 border-slate-900">+20k</div>
+            </div>
+            <p className="text-sm text-slate-500 font-semibold flex items-center gap-2">
+              <ShieldCheck size={16} className="text-blue-400" />
+              Trusted by engineers worldwide.
+            </p>
           </div>
         </div>
 
@@ -113,7 +118,7 @@ const Auth: React.FC = () => {
             </h1>
             <p className="text-slate-500 font-medium">
               {isLogin ? "New here?" : "Already a member?"}{" "}
-              <button 
+              <button
                 onClick={() => { setIsLogin(!isLogin); setError(''); }}
                 className="text-blue-600 font-bold hover:text-blue-700 transition-colors"
               >
@@ -136,9 +141,9 @@ const Auth: React.FC = () => {
                   <label className="block text-[11px] font-black text-slate-400 uppercase tracking-[0.15em] mb-2.5 ml-1">Full Name</label>
                   <div className="relative">
                     <User className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                    <input 
+                    <input
                       required
-                      type="text" 
+                      type="text"
                       className="w-full pl-14 pr-6 py-4.5 bg-white border border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-100 outline-none transition-all shadow-sm placeholder-slate-300"
                       placeholder="e.g. S.M. Abdullah"
                       value={name}
@@ -146,26 +151,7 @@ const Auth: React.FC = () => {
                     />
                   </div>
                 </div>
-                
-                <div>
-                  <label className="block text-[11px] font-black text-slate-400 uppercase tracking-[0.15em] mb-2.5 ml-1">Select Role</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {['Student', 'Alumni', 'Mentor', 'Company'].map((r) => (
-                      <button
-                        key={r}
-                        type="button"
-                        onClick={() => setRole(r as any)}
-                        className={`py-3.5 rounded-2xl text-sm font-bold border-2 transition-all ${
-                          role === r 
-                            ? 'bg-blue-600 border-blue-600 text-white shadow-xl shadow-blue-200' 
-                            : 'bg-white border-slate-50 text-slate-500 hover:border-slate-200'
-                        }`}
-                      >
-                        {r}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+
               </div>
             )}
 
@@ -173,9 +159,9 @@ const Auth: React.FC = () => {
               <label className="block text-[11px] font-black text-slate-400 uppercase tracking-[0.15em] mb-2.5 ml-1">Email Address</label>
               <div className="relative">
                 <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input 
+                <input
                   required
-                  type="email" 
+                  type="email"
                   className="w-full pl-14 pr-6 py-4.5 bg-white border border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-100 outline-none transition-all shadow-sm placeholder-slate-300"
                   placeholder="name@ruet.ac.bd"
                   value={email}
@@ -188,9 +174,9 @@ const Auth: React.FC = () => {
               <label className="block text-[11px] font-black text-slate-400 uppercase tracking-[0.15em] mb-2.5 ml-1">Security Password</label>
               <div className="relative">
                 <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input 
+                <input
                   required
-                  type={showPassword ? "text" : "password"} 
+                  type={showPassword ? "text" : "password"}
                   className="w-full pl-14 pr-14 py-4.5 bg-white border border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-100 outline-none transition-all shadow-sm placeholder-slate-300"
                   placeholder="••••••••"
                   value={password}
@@ -212,7 +198,7 @@ const Auth: React.FC = () => {
               </div>
             )}
 
-            <button 
+            <button
               type="submit"
               disabled={isLoading}
               className="w-full py-5 bg-blue-600 text-white rounded-[2rem] font-black text-lg shadow-2xl shadow-blue-200 hover:bg-blue-700 hover:scale-[1.01] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-3 mt-6"
@@ -227,7 +213,7 @@ const Auth: React.FC = () => {
               )}
             </button>
           </form>
-          
+
           <p className="mt-10 text-center text-slate-400 text-xs font-medium">
             By continuing, you agree to the RUETConnect <span className="underline">Terms of Service</span> and <span className="underline">Privacy Policy</span>.
           </p>

@@ -6,15 +6,21 @@ import Footer from './components/Footer';
 import Home from './pages/Home';
 import Network from './pages/Network';
 import Jobs from './pages/Jobs';
-import Mentorship from './pages/Mentorship';
+import Notices from './pages/Notices';
+import Groups from './pages/Groups';
+import GroupView from './pages/GroupView';
 import Events from './pages/Events';
 import Profile from './pages/Profile';
 import Auth from './pages/Auth';
 import AdminDashboard from './pages/AdminDashboard';
 import NotFound from './pages/NotFound';
 import Feed from './pages/Feed';
+import Messages from './pages/Messages';
+import Mentorship from './pages/Mentorship';
 import { db } from './db';
 import { User } from './types';
+import { SocketProvider } from './context/SocketContext';
+import ChatWidget from './components/ChatWidget';
 
 // --- Scroll Restoration Utility ---
 const ScrollToTop = () => {
@@ -28,9 +34,10 @@ const ScrollToTop = () => {
 // --- Auth Context & Provider ---
 interface AuthContextType {
   user: User | null;
-  login: (email: string, pass: string) => boolean;
-  register: (userData: Omit<User, 'id'>) => void;
+  login: (email: string, pass: string) => Promise<boolean>;
+  register: (userData: Omit<User, 'id'>) => Promise<void>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -58,25 +65,31 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    db.init();
-    const authUser = db.getCurrentUser();
+  const fetchUser = async () => {
+    const authUser = await db.getCurrentUser();
     setCurrentUser(authUser);
     setLoading(false);
+  };
+
+  useEffect(() => {
+    db.init();
+    fetchUser();
   }, []);
 
-  const login = (email: string, pass: string) => {
-    const user = db.login(email, pass);
-    if (user) {
-      setCurrentUser(user);
+  const login = async (email: string, pass: string) => {
+    const data = await db.login(email, pass);
+    if (data && data.user) {
+      setCurrentUser(data.user);
       return true;
     }
     return false;
   };
 
-  const register = (userData: Omit<User, 'id'>) => {
-    const user = db.register(userData);
-    setCurrentUser(user);
+  const register = async (userData: Omit<User, 'id'>) => {
+    const data = await db.register(userData);
+    if (data && data.user) {
+      setCurrentUser(data.user);
+    }
   };
 
   const logout = () => {
@@ -84,10 +97,15 @@ const App: React.FC = () => {
     setCurrentUser(null);
   };
 
+  const refreshUser = async () => {
+    const authUser = await db.getCurrentUser();
+    setCurrentUser(authUser);
+  };
+
   if (loading) return null;
 
   return (
-    <AuthContext.Provider value={{ user: currentUser, login, register, logout }}>
+    <AuthContext.Provider value={{ user: currentUser, login, register, logout, refreshUser }}>
       <Router>
         <ScrollToTop />
         <div className="min-h-screen flex flex-col selection:bg-blue-100 selection:text-blue-900">
@@ -95,26 +113,30 @@ const App: React.FC = () => {
           <main className="flex-grow">
             <Routes>
               {/* Public Routes */}
-              <Route path="/" element={<Home />} />
-              <Route 
-                path="/auth" 
-                element={currentUser ? <Navigate to="/" replace /> : <Auth />} 
+              <Route path="/" element={currentUser ? <Navigate to="/feed" replace /> : <Home />} />
+              <Route
+                path="/auth"
+                element={currentUser ? <Navigate to="/" replace /> : <Auth />}
               />
-              <Route path="/feed" element={<Feed />} />
-              <Route path="/network" element={<Network />} />
-              <Route path="/jobs" element={<Jobs />} />
-              <Route path="/mentorship" element={<Mentorship />} />
-              <Route path="/events" element={<Events />} />
-              <Route path="/profile/:id" element={<Profile />} />
+              <Route path="/feed" element={<RequireAuth><Feed /></RequireAuth>} />
+              <Route path="/network" element={<RequireAuth><Network /></RequireAuth>} />
+              <Route path="/messages" element={<RequireAuth><Messages /></RequireAuth>} />
+              <Route path="/jobs" element={<RequireAuth><Jobs /></RequireAuth>} />
+              <Route path="/notices" element={<RequireAuth><Notices /></RequireAuth>} />
+              <Route path="/groups" element={<RequireAuth><Groups /></RequireAuth>} />
+              <Route path="/groups/:id" element={<RequireAuth><GroupView /></RequireAuth>} />
+              <Route path="/events" element={<RequireAuth><Events /></RequireAuth>} />
+              <Route path="/mentorship" element={<RequireAuth><Mentorship /></RequireAuth>} />
+              <Route path="/profile/:id" element={<RequireAuth><Profile /></RequireAuth>} />
 
               {/* Admin Protected Routes */}
-              <Route 
-                path="/admin" 
+              <Route
+                path="/admin"
                 element={
                   <AdminRoute>
                     <AdminDashboard />
                   </AdminRoute>
-                } 
+                }
               />
 
               {/* 404 Fallback */}

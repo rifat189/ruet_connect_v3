@@ -15,7 +15,7 @@ export interface Experience {
   description: string;
 }
 
-export type UserRole = 'Admin' | 'Alumni' | 'Student' | 'Faculty' | 'Mentor' | 'Company';
+export type UserRole = 'Admin' | 'Alumni' | 'Student' | 'Faculty' | 'Mentor' | 'Company' | 'Teacher';
 
 export interface User {
   id: string;
@@ -37,12 +37,15 @@ export interface User {
     website?: string;
   };
   skills?: string[];
-  lookingForMentorship?: boolean;
   accomplishments?: string[];
   projects?: Project[];
   experience?: Experience[];
   isVerified?: boolean;
   connections?: string[];
+  isMentor?: boolean;
+  mentoringSkills?: string[];
+  mentorshipBio?: string;
+  lookingForMentorship?: boolean;
 }
 
 export interface Comment {
@@ -97,20 +100,46 @@ export interface Event {
   interestedCount?: number;
 }
 
+export interface Notice {
+  id: string;
+  title: string;
+  content: string;
+  category: 'Academic' | 'Administrative' | 'Event' | 'General';
+  postedBy: string;
+  postedByUserId: string;
+  createdAt: string;
+}
+
+export type NotificationType = 'connection' | 'job' | 'event' | 'system' | 'post';
+
 export interface AppNotification {
   id: string;
   userId: string;
   title: string;
   message: string;
-  type: 'connection' | 'job' | 'event' | 'system' | 'mentorship' | 'post';
+  type: NotificationType;
   timestamp: number;
   isRead: boolean;
   link?: string;
 }
 
-export interface MentorshipSession {
+export interface MentorshipRequest {
   id: string;
   mentorId: string;
+  menteeId: string;
   topic: string;
-  status: 'Open' | 'Closed';
+  message?: string;
+  status: 'pending' | 'accepted' | 'rejected' | 'completed';
+  createdAt: string;
+}
+
+export interface Group {
+  id: string;
+  name: string;
+  description: string;
+  image?: string;
+  privacy: 'Public' | 'Private';
+  members: string[]; // User IDs
+  createdBy: string;
+  createdAt: string;
 }

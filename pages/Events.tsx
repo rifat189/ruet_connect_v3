@@ -27,38 +27,52 @@ const Events: React.FC = () => {
   });
 
   useEffect(() => {
-    setEvents(db.getEvents());
+    const fetchEvents = async () => {
+      const data = await db.getEvents();
+      setEvents(data);
+    };
+    fetchEvents();
   }, []);
 
-  const filteredEvents = events.filter(event => 
+  const filteredEvents = events.filter(event =>
     event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
     event.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
     event.type.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleCreateEvent = (e: React.FormEvent) => {
+  const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
-    db.addEvent({
+    await db.addEvent({
       ...newEvent,
       organizer: user?.name || 'RUET Community',
       interestedCount: 0
     });
-    setEvents(db.getEvents());
+
+    // Refresh
+    const freshEvents = await db.getEvents();
+    setEvents(freshEvents);
+
     setShowModal(false);
     setNewEvent({ title: '', date: '', time: '', type: 'Meetup', location: '', image: 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?auto=format&fit=crop&q=80&w=600', description: '', organizer: user?.name || 'RUET Community' });
   };
 
-  const handleInterested = (e: React.MouseEvent, eventId: string) => {
+  const handleInterested = async (e: React.MouseEvent, eventId: string) => {
     e.stopPropagation();
     if (interestedIds.has(eventId)) return;
 
     setLoadingId(eventId);
-    // Simulate registration
-    setTimeout(() => {
+    try {
+      await db.joinEvent(eventId);
       setInterestedIds(prev => new Set(prev).add(eventId));
-      setLoadingId(null);
       triggerToast('You are now registered for this event!');
-    }, 1200);
+      // Refresh to update count
+      const freshEvents = await db.getEvents();
+      setEvents(freshEvents);
+    } catch (error) {
+      console.error("Failed to join event", error);
+    } finally {
+      setLoadingId(null);
+    }
   };
 
   const triggerToast = (message: string) => {
@@ -66,7 +80,7 @@ const Events: React.FC = () => {
     setTimeout(() => setShowToast(null), 3000);
   };
 
-  const canCreateEvent = user && ['Admin', 'Faculty'].includes(user.role);
+  const canCreateEvent = !!user; // Everyone can create events now
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-12">
@@ -88,8 +102,8 @@ const Events: React.FC = () => {
           <h1 className="text-4xl font-extrabold text-slate-900 mb-4 tracking-tight">Community Events</h1>
           <div className="relative max-w-xl mb-4 md:mb-0">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input 
-              type="text" 
+            <input
+              type="text"
               placeholder="Filter events by title, location, or type..."
               className="w-full pl-12 pr-6 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-4 focus:ring-blue-100 transition-all font-medium text-sm"
               value={searchTerm}
@@ -98,7 +112,7 @@ const Events: React.FC = () => {
           </div>
         </div>
         {canCreateEvent ? (
-          <button 
+          <button
             onClick={() => setShowModal(true)}
             className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-100 hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 flex-shrink-0"
           >
@@ -126,18 +140,17 @@ const Events: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
           {filteredEvents.map((event) => (
-            <div 
-              key={event.id} 
+            <div
+              key={event.id}
               onClick={() => setSelectedEvent(event)}
               className="group bg-white rounded-[2.5rem] overflow-hidden border border-gray-100 flex flex-col md:flex-row shadow-sm hover:shadow-2xl hover:-translate-y-1 transition-all duration-500 cursor-pointer"
             >
               <div className="md:w-2/5 relative overflow-hidden h-64 md:h-auto">
                 <img src={event.image} alt={event.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
                 <div className="absolute top-4 left-4">
-                  <span className={`px-4 py-1.5 rounded-full text-[10px] font-bold shadow-lg uppercase tracking-wider ${
-                    event.type === 'Reunion' ? 'bg-orange-500 text-white' : 
+                  <span className={`px-4 py-1.5 rounded-full text-[10px] font-bold shadow-lg uppercase tracking-wider ${event.type === 'Reunion' ? 'bg-orange-500 text-white' :
                     event.type === 'Webinar' ? 'bg-blue-600 text-white' : 'bg-emerald-600 text-white'
-                  }`}>
+                    }`}>
                     {event.type}
                   </span>
                 </div>
@@ -173,18 +186,17 @@ const Events: React.FC = () => {
                     </span>
                   </div>
                   <div className="flex gap-2">
-                     <button 
+                    <button
                       onClick={(e) => handleInterested(e, event.id)}
                       disabled={loadingId === event.id || interestedIds.has(event.id)}
-                      className={`p-2.5 rounded-xl transition-all active:scale-90 ${
-                        interestedIds.has(event.id) 
-                        ? 'bg-emerald-50 text-emerald-600' 
+                      className={`p-2.5 rounded-xl transition-all active:scale-90 ${interestedIds.has(event.id)
+                        ? 'bg-emerald-50 text-emerald-600'
                         : 'bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white'
-                      }`}
-                     >
-                      {loadingId === event.id ? <Loader2 size={20} className="animate-spin" /> : 
-                       interestedIds.has(event.id) ? <CheckCircle size={20} /> : <ArrowRight size={20} />}
-                     </button>
+                        }`}
+                    >
+                      {loadingId === event.id ? <Loader2 size={20} className="animate-spin" /> :
+                        interestedIds.has(event.id) ? <CheckCircle size={20} /> : <ArrowRight size={20} />}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -193,7 +205,114 @@ const Events: React.FC = () => {
         </div>
       )}
 
-      {/* Modal logic remains identical... */}
+      {/* Create Event Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setShowModal(false)}></div>
+          <div className="relative bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl p-10 animate-in zoom-in duration-300">
+            <h2 className="text-3xl font-black text-slate-900 mb-8 tracking-tight">Host an Event</h2>
+            <form onSubmit={handleCreateEvent} className="space-y-6">
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Event Title</label>
+                <input
+                  required
+                  className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-100 transition-all placeholder:text-slate-300"
+                  placeholder="e.g. DHAKA GET TOGETHER 2025"
+                  value={newEvent.title}
+                  onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Type</label>
+                  <select
+                    className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-100 appearance-none"
+                    value={newEvent.type}
+                    onChange={(e) => setNewEvent({ ...newEvent, type: e.target.value as any })}
+                  >
+                    <option value="Meetup">Meetup</option>
+                    <option value="Reunion">Reunion</option>
+                    <option value="Webinar">Webinar</option>
+                    <option value="Workshop">Workshop</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Date</label>
+                  <input
+                    required
+                    type="date"
+                    className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-100 text-slate-600"
+                    value={newEvent.date}
+                    onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Time</label>
+                  <input
+                    required
+                    type="time"
+                    className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-100 text-slate-600"
+                    value={newEvent.time}
+                    onChange={(e) => setNewEvent({ ...newEvent, time: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Location</label>
+                  <input
+                    required
+                    className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-100 placeholder:text-slate-300"
+                    placeholder="e.g. Zoom or TSC"
+                    value={newEvent.location}
+                    onChange={(e) => setNewEvent({ ...newEvent, location: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Cover Image URL</label>
+                <input
+                  className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-100 placeholder:text-slate-300"
+                  placeholder="https://..."
+                  value={newEvent.image}
+                  onChange={(e) => setNewEvent({ ...newEvent, image: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Description</label>
+                <textarea
+                  required
+                  rows={3}
+                  className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium outline-none focus:ring-4 focus:ring-blue-100 resize-none placeholder:text-slate-300"
+                  placeholder="Tell us what this event is about..."
+                  value={newEvent.description}
+                  onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })}
+                />
+              </div>
+
+              <div className="flex gap-4 pt-4">
+                <button
+                  type="submit"
+                  className="flex-grow py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-xl shadow-blue-100 hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all"
+                >
+                  Create Event
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="px-8 py-4 bg-slate-100 text-slate-500 rounded-2xl font-bold hover:bg-slate-200 transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       {selectedEvent && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setSelectedEvent(null)}></div>
@@ -201,7 +320,7 @@ const Events: React.FC = () => {
             <div className="relative h-64 sm:h-80 overflow-hidden">
               <img src={selectedEvent.image} className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 to-transparent"></div>
-              <button 
+              <button
                 onClick={() => setSelectedEvent(null)}
                 className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white backdrop-blur-sm transition-colors"
               >
@@ -214,7 +333,7 @@ const Events: React.FC = () => {
                 <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight">{selectedEvent.title}</h2>
               </div>
             </div>
-            
+
             <div className="p-10 grid grid-cols-1 md:grid-cols-3 gap-10">
               <div className="md:col-span-2 space-y-8">
                 <section>
@@ -239,19 +358,19 @@ const Events: React.FC = () => {
                 <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white space-y-6">
                   <div className="space-y-1">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                       <Calendar size={12} className="text-blue-400" /> Date
+                      <Calendar size={12} className="text-blue-400" /> Date
                     </p>
                     <p className="font-bold">{selectedEvent.date}</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                       <Clock size={12} className="text-blue-400" /> Time
+                      <Clock size={12} className="text-blue-400" /> Time
                     </p>
                     <p className="font-bold">{selectedEvent.time}</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                       <MapPin size={12} className="text-blue-400" /> Location
+                      <MapPin size={12} className="text-blue-400" /> Location
                     </p>
                     <p className="font-bold text-sm leading-snug">{selectedEvent.location}</p>
                   </div>
@@ -260,23 +379,22 @@ const Events: React.FC = () => {
             </div>
 
             <div className="p-8 border-t border-gray-100 bg-white flex flex-col sm:flex-row gap-4">
-              <button 
+              <button
                 onClick={(e) => handleInterested(e, selectedEvent.id)}
                 disabled={loadingId === selectedEvent.id || interestedIds.has(selectedEvent.id)}
-                className={`flex-grow py-5 rounded-[1.5rem] font-bold text-lg transition-all flex items-center justify-center gap-3 ${
-                  interestedIds.has(selectedEvent.id)
+                className={`flex-grow py-5 rounded-[1.5rem] font-bold text-lg transition-all flex items-center justify-center gap-3 ${interestedIds.has(selectedEvent.id)
                   ? 'bg-emerald-50 text-emerald-600'
                   : 'bg-blue-600 text-white hover:bg-blue-700 shadow-xl shadow-blue-100'
-                }`}
+                  }`}
               >
-                {loadingId === selectedEvent.id ? <Loader2 size={24} className="animate-spin" /> : 
-                 interestedIds.has(selectedEvent.id) ? (
-                   <><CheckCircle size={24} /> Registered</>
-                 ) : (
-                   'Count Me In!'
-                 )}
+                {loadingId === selectedEvent.id ? <Loader2 size={24} className="animate-spin" /> :
+                  interestedIds.has(selectedEvent.id) ? (
+                    <><CheckCircle size={24} /> Registered</>
+                  ) : (
+                    'Count Me In!'
+                  )}
               </button>
-              <button 
+              <button
                 onClick={() => setSelectedEvent(null)}
                 className="p-5 bg-gray-50 text-slate-400 rounded-[1.5rem] hover:bg-gray-100 transition-colors"
               >

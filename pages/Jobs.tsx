@@ -4,9 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { db } from '../db';
 import { useAuth } from '../App';
 import { Job, User } from '../types';
-import { 
-  Briefcase, MapPin, DollarSign, Clock, Search, ChevronRight, X, Plus, 
-  ShieldAlert, CheckCircle, Info, Loader2, User as UserIcon, 
+import {
+  Briefcase, MapPin, DollarSign, Clock, Search, ChevronRight, X, Plus,
+  ShieldAlert, CheckCircle, Info, Loader2, User as UserIcon,
   ArrowUpRight, LogIn, FileText, Target, Building2, Sparkles, BrainCircuit
 } from 'lucide-react';
 import { GoogleGenAI, Type } from "@google/genai";
@@ -19,9 +19,10 @@ const Jobs: React.FC = () => {
   const [showPostModal, setShowPostModal] = useState(false);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [appliedJobs, setAppliedJobs] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState<'browse' | 'applied'>('browse');
   const [applyingId, setApplyingId] = useState<string | null>(null);
   const [showToast, setShowToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-  
+
   // AI Compatibility State
   const [aiScore, setAiScore] = useState<number | null>(null);
   const [aiReason, setAiReason] = useState<string | null>(null);
@@ -34,11 +35,20 @@ const Jobs: React.FC = () => {
     type: 'Full-time' as Job['type'],
     postedBy: user?.name || 'Anonymous',
     salary: '',
-    description: ''
+    description: '',
+    requirements: ''
   });
 
   useEffect(() => {
-    setJobs(db.getJobs());
+    const fetchData = async () => {
+      const [jobsData, appliedData] = await Promise.all([
+        db.getJobs(),
+        db.getAppliedJobs()
+      ]);
+      setJobs(jobsData);
+      setAppliedJobs(new Set(appliedData.map((j: Job) => j.id)));
+    };
+    fetchData();
   }, []);
 
   // Trigger AI Analysis when a job is selected
@@ -55,7 +65,7 @@ const Jobs: React.FC = () => {
     setIsAnalyzing(true);
     setAiScore(null);
     setAiReason(null);
-    
+
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const prompt = `
@@ -98,27 +108,36 @@ const Jobs: React.FC = () => {
     }
   };
 
-  const filteredJobs = jobs.filter(job => 
-    job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    job.company.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredJobs = jobs.filter(job => {
+    const matchesSearch = job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      job.company.toLowerCase().includes(searchTerm.toLowerCase());
 
-  const handlePostJob = (e: React.FormEvent) => {
+    if (activeTab === 'applied') {
+      return matchesSearch && appliedJobs.has(job.id);
+    }
+    return matchesSearch;
+  });
+
+  const handlePostJob = async (e: React.FormEvent) => {
     e.preventDefault();
     const posterId = user?.id || 'anonymous';
-    db.addJob({ 
-      ...newJob, 
-      postedBy: user?.name || 'Anonymous', 
+    await db.addJob({
+      ...newJob,
+      postedBy: user?.name || 'Anonymous',
       postedByUserId: posterId,
-      requirements: ['Strong analytical skills', 'Relevant engineering background'] 
+      // Split requirements by newlines or commas and filter empty strings
+      requirements: newJob.requirements.split(/[\n,]/).map(r => r.trim()).filter(r => r.length > 0)
     });
-    
-    setJobs(db.getJobs());
+
+    // Refresh jobs list
+    const updatedJobs = await db.getJobs();
+    setJobs(updatedJobs);
+
     setShowPostModal(false);
     triggerToast('Job posted successfully!', 'success');
   };
 
-  const handleApply = (e: React.MouseEvent | React.FormEvent, job: Job) => {
+  const handleApply = async (e: React.MouseEvent | React.FormEvent, job: Job) => {
     if (e) e.stopPropagation();
     if (!user) {
       triggerToast('Please log in to apply.', 'error');
@@ -126,13 +145,18 @@ const Jobs: React.FC = () => {
     }
 
     if (appliedJobs.has(job.id)) return;
-    
+
     setApplyingId(job.id);
-    setTimeout(() => {
+    try {
+      await db.applyToJob(job.id);
       setAppliedJobs(prev => new Set(prev).add(job.id));
-      setApplyingId(null);
       triggerToast('Application sent!', 'success');
-    }, 1500);
+    } catch (error) {
+      console.error("Failed to apply:", error);
+      triggerToast('Failed to send application.', 'error');
+    } finally {
+      setApplyingId(null);
+    }
   };
 
   const triggerToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
@@ -145,9 +169,8 @@ const Jobs: React.FC = () => {
       {/* Toast */}
       {showToast && (
         <div className="fixed top-24 right-8 z-[150] animate-in fade-in slide-in-from-right-4">
-          <div className={`${
-            showToast.type === 'success' ? 'bg-slate-900 border-emerald-500/30' : 'bg-slate-900 border-slate-700'
-          } text-white px-6 py-4 rounded-2xl shadow-2xl border flex items-center gap-3 backdrop-blur-xl`}>
+          <div className={`${showToast.type === 'success' ? 'bg-slate-900 border-emerald-500/30' : 'bg-slate-900 border-slate-700'
+            } text-white px-6 py-4 rounded-2xl shadow-2xl border flex items-center gap-3 backdrop-blur-xl`}>
             <CheckCircle className={showToast.type === 'success' ? 'text-emerald-500' : 'text-blue-500'} size={20} />
             <p className="font-medium text-sm">{showToast.message}</p>
           </div>
@@ -173,8 +196,8 @@ const Jobs: React.FC = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            {user && ['Alumni', 'Mentor', 'Company', 'Admin'].includes(user.role) && (
-              <button 
+            {user && (
+              <button
                 onClick={() => setShowPostModal(true)}
                 className="px-8 py-4 bg-white text-indigo-700 rounded-2xl font-black text-sm hover:scale-105 transition-transform shadow-lg whitespace-nowrap"
               >
@@ -187,42 +210,92 @@ const Jobs: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
         <div className="lg:col-span-8 space-y-6">
-          <h2 className="text-2xl font-black text-slate-900 px-2">Recent Postings</h2>
-          {filteredJobs.map((job) => (
-            <div 
-              key={job.id} 
-              onClick={() => setSelectedJob(job)}
-              className="group bg-white p-8 rounded-[2.5rem] border border-slate-100 hover:border-indigo-200 hover:shadow-xl transition-all cursor-pointer shadow-sm"
-            >
-              <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
-                <div className="flex gap-6">
-                  <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 border border-slate-100 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-all">
-                    <Building2 size={32} />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-black text-slate-900 group-hover:text-indigo-600 transition-colors tracking-tight">{job.title}</h3>
-                    <p className="text-slate-600 font-bold mb-3">{job.company}</p>
-                    <div className="flex flex-wrap gap-4">
-                      <span className="flex items-center gap-1.5 text-slate-400 text-xs font-bold uppercase tracking-widest">
-                        <MapPin size={14} className="text-indigo-500" /> {job.location}
-                      </span>
-                      <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black uppercase tracking-widest">
-                        {job.type}
-                      </span>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-black text-slate-900 px-2">
+              {activeTab === 'browse' ? 'Recent Postings' : 'My Applications'}
+            </h2>
+            <div className="flex bg-slate-100 p-1 rounded-xl">
+              <button
+                onClick={() => setActiveTab('browse')}
+                className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'browse'
+                  ? 'bg-white text-indigo-600 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+                  }`}
+              >
+                Browse
+              </button>
+              <button
+                onClick={() => setActiveTab('applied')}
+                className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'applied'
+                  ? 'bg-white text-indigo-600 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+                  }`}
+              >
+                Applied ({appliedJobs.size})
+              </button>
+            </div>
+          </div>
+
+          {filteredJobs.length === 0 ? (
+            <div className="text-center py-20 bg-white rounded-[2.5rem] border border-dashed border-gray-200">
+              <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
+                <Briefcase size={32} />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 mb-1">
+                {activeTab === 'applied' ? 'No applications yet' : 'No jobs found'}
+              </h3>
+              <p className="text-slate-500 text-sm">
+                {activeTab === 'applied'
+                  ? 'Start applying to opportunities to track them here.'
+                  : 'Try adjusting your search terms.'}
+              </p>
+            </div>
+          ) : (
+            filteredJobs.map((job) => (
+              <div
+                key={job.id}
+                onClick={() => setSelectedJob(job)}
+                className="group bg-white p-8 rounded-[2.5rem] border border-slate-100 hover:border-indigo-200 hover:shadow-xl transition-all cursor-pointer shadow-sm"
+              >
+                <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
+                  <div className="flex gap-6">
+                    <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 border border-slate-100 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-all">
+                      <Building2 size={32} />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-black text-slate-900 group-hover:text-indigo-600 transition-colors tracking-tight">{job.title}</h3>
+                      <p className="text-slate-600 font-bold mb-3">{job.company}</p>
+                      <div className="flex flex-wrap gap-4">
+                        <span className="flex items-center gap-1.5 text-slate-400 text-xs font-bold uppercase tracking-widest">
+                          <MapPin size={14} className="text-indigo-500" /> {job.location}
+                        </span>
+                        <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black uppercase tracking-widest">
+                          {job.type}
+                        </span>
+                      </div>
                     </div>
                   </div>
+                  <button
+                    onClick={(e) => handleApply(e, job)}
+                    disabled={applyingId === job.id}
+                    className={`px-8 py-3.5 rounded-2xl font-black text-sm transition-all flex items-center gap-2 ${appliedJobs.has(job.id) ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-900 text-white hover:bg-indigo-600'
+                      }`}
+                  >
+                    {applyingId === job.id ? (
+                      <>
+                        <Loader2 className="animate-spin" size={16} /> Applying...
+                      </>
+                    ) : appliedJobs.has(job.id) ? (
+                      <>
+                        <CheckCircle size={16} /> Applied
+                      </>
+                    ) : (
+                      'Details'
+                    )}
+                  </button>
                 </div>
-                <button 
-                  onClick={(e) => handleApply(e, job)}
-                  className={`px-8 py-3.5 rounded-2xl font-black text-sm transition-all ${
-                    appliedJobs.has(job.id) ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-900 text-white hover:bg-indigo-600'
-                  }`}
-                >
-                  {appliedJobs.has(job.id) ? 'Applied' : 'Details'}
-                </button>
               </div>
-            </div>
-          ))}
+            )))}
         </div>
 
         <aside className="lg:col-span-4 space-y-8">
@@ -245,7 +318,7 @@ const Jobs: React.FC = () => {
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 sm:p-12">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md animate-in fade-in" onClick={() => setSelectedJob(null)}></div>
           <div className="relative bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl flex flex-col max-h-[75vh] animate-in zoom-in slide-in-from-bottom-8 overflow-hidden">
-            
+
             {/* Modal Header */}
             <div className="px-8 py-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-4">
@@ -282,18 +355,18 @@ const Jobs: React.FC = () => {
                 {isAnalyzing ? (
                   <div className="flex items-center gap-4">
                     <div className="h-2 flex-grow bg-indigo-200/50 rounded-full overflow-hidden">
-                       <div className="h-full bg-indigo-500 w-1/3 animate-[shimmer_2s_infinite]"></div>
+                      <div className="h-full bg-indigo-500 w-1/3 animate-[shimmer_2s_infinite]"></div>
                     </div>
                     <span className="text-xs font-black text-indigo-400">Scanning Profile...</span>
                   </div>
                 ) : aiScore !== null ? (
                   <div className="flex items-center gap-6">
                     <div className="relative w-16 h-16 shrink-0">
-                       <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
-                          <circle cx="18" cy="18" r="16" fill="none" className="stroke-indigo-100" strokeWidth="3" />
-                          <circle cx="18" cy="18" r="16" fill="none" className="stroke-indigo-600" strokeWidth="3" strokeDasharray={`${aiScore}, 100`} />
-                       </svg>
-                       <div className="absolute inset-0 flex items-center justify-center text-sm font-black text-slate-900">{aiScore}%</div>
+                      <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                        <circle cx="18" cy="18" r="16" fill="none" className="stroke-indigo-100" strokeWidth="3" />
+                        <circle cx="18" cy="18" r="16" fill="none" className="stroke-indigo-600" strokeWidth="3" strokeDasharray={`${aiScore}, 100`} />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center text-sm font-black text-slate-900">{aiScore}%</div>
                     </div>
                     <p className="text-sm text-slate-600 font-medium leading-relaxed italic">"{aiReason}"</p>
                   </div>
@@ -350,18 +423,27 @@ const Jobs: React.FC = () => {
 
             {/* Modal Footer */}
             <div className="p-6 border-t border-slate-100 bg-white flex items-center justify-between shrink-0">
-               <button onClick={() => setSelectedJob(null)} className="text-xs font-black text-slate-400 uppercase tracking-widest px-4 hover:text-slate-900 transition-colors">
-                 Dismiss
-               </button>
-               <button 
+              <button onClick={() => setSelectedJob(null)} className="text-xs font-black text-slate-400 uppercase tracking-widest px-4 hover:text-slate-900 transition-colors">
+                Dismiss
+              </button>
+              <button
                 onClick={(e) => handleApply(e, selectedJob)}
-                disabled={appliedJobs.has(selectedJob.id)}
-                className={`px-10 py-4 rounded-2xl font-black text-sm transition-all shadow-lg ${
-                  appliedJobs.has(selectedJob.id) ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-900 text-white hover:bg-indigo-600'
-                }`}
-               >
-                 {appliedJobs.has(selectedJob.id) ? 'Application Sent' : 'Apply Now'}
-               </button>
+                disabled={appliedJobs.has(selectedJob.id) || applyingId === selectedJob.id}
+                className={`px-10 py-4 rounded-2xl font-black text-sm transition-all shadow-lg flex items-center gap-2 ${appliedJobs.has(selectedJob.id) ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-900 text-white hover:bg-indigo-600'
+                  }`}
+              >
+                {applyingId === selectedJob.id ? (
+                  <>
+                    <Loader2 className="animate-spin" size={16} /> Applying...
+                  </>
+                ) : appliedJobs.has(selectedJob.id) ? (
+                  <>
+                    <CheckCircle size={16} /> Application Sent
+                  </>
+                ) : (
+                  'Apply Now'
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -375,11 +457,36 @@ const Jobs: React.FC = () => {
             <h2 className="text-2xl font-black text-slate-900 mb-8 tracking-tight">Post New Opportunity</h2>
             <form onSubmit={handlePostJob} className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
-                <input required className="px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-100" placeholder="Title" value={newJob.title} onChange={e => setNewJob({...newJob, title: e.target.value})} />
-                <input required className="px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-100" placeholder="Company" value={newJob.company} onChange={e => setNewJob({...newJob, company: e.target.value})} />
+                <input required className="px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-100" placeholder="Title" value={newJob.title} onChange={e => setNewJob({ ...newJob, title: e.target.value })} />
+                <input required className="px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-100" placeholder="Company" value={newJob.company} onChange={e => setNewJob({ ...newJob, company: e.target.value })} />
               </div>
-              <input required className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-100" placeholder="Location" value={newJob.location} onChange={e => setNewJob({...newJob, location: e.target.value})} />
-              <textarea required className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium outline-none focus:ring-4 focus:ring-indigo-100 h-32 resize-none" placeholder="Description" value={newJob.description} onChange={e => setNewJob({...newJob, description: e.target.value})} />
+              <div className="grid grid-cols-2 gap-4">
+                <select
+                  className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-100 appearance-none text-slate-600"
+                  value={newJob.type}
+                  onChange={e => setNewJob({ ...newJob, type: e.target.value as any })}
+                >
+                  <option value="Full-time">Full-time</option>
+                  <option value="Part-time">Part-time</option>
+                  <option value="Contract">Contract</option>
+                  <option value="Internship">Internship</option>
+                  <option value="Remote">Remote</option>
+                </select>
+                <input
+                  className="px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-100"
+                  placeholder="Salary (e.g. 50k-80k)"
+                  value={newJob.salary}
+                  onChange={e => setNewJob({ ...newJob, salary: e.target.value })}
+                />
+              </div>
+              <input required className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-100" placeholder="Location" value={newJob.location} onChange={e => setNewJob({ ...newJob, location: e.target.value })} />
+              <textarea required className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium outline-none focus:ring-4 focus:ring-indigo-100 h-24 resize-none" placeholder="Description" value={newJob.description} onChange={e => setNewJob({ ...newJob, description: e.target.value })} />
+              <textarea
+                className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium outline-none focus:ring-4 focus:ring-indigo-100 h-24 resize-none"
+                placeholder="Requirements (separate by commas or new lines)..."
+                value={newJob.requirements}
+                onChange={e => setNewJob({ ...newJob, requirements: e.target.value })}
+              />
               <div className="flex gap-4 pt-4">
                 <button type="submit" className="flex-grow py-5 bg-indigo-600 text-white rounded-[1.5rem] font-black shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all">Publish</button>
                 <button type="button" onClick={() => setShowPostModal(false)} className="px-10 py-5 bg-slate-100 text-slate-500 rounded-[1.5rem] font-black hover:bg-slate-200 transition-all">Cancel</button>

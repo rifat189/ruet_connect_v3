@@ -3,9 +3,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../db';
 import { useAuth } from '../App';
 import { Post, User, Comment } from '../types';
-import { 
-  Heart, MessageSquare, Share2, MoreHorizontal, Image as ImageIcon, 
-  Video, Send, Bold, Italic, List, ShieldCheck, 
+import {
+  Heart, MessageSquare, Share2, MoreHorizontal, Image as ImageIcon,
+  Video, Send, Bold, Italic, List, ShieldCheck,
   Users, Globe, Sparkles, X, CheckCircle, Eye, EyeOff, Loader2,
   TrendingUp, UserPlus, Star, Clock
 } from 'lucide-react';
@@ -25,19 +25,23 @@ const Feed: React.FC = () => {
   const [favorites, setFavorites] = useState<User[]>([]);
   const [openCommentPostId, setOpenCommentPostId] = useState<string | null>(null);
   const [activeCommentContent, setActiveCommentContent] = useState<Record<string, string>>({});
-  
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     loadPosts();
-    const allUsers = db.getUsers().filter(u => u.id !== user?.id).slice(0, 4);
-    setFavorites(allUsers);
+    const fetchFavorites = async () => {
+      const allUsers = await db.getUsers();
+      const favs = allUsers.filter(u => u.id !== user?.id).slice(0, 4);
+      setFavorites(favs);
+    };
+    fetchFavorites();
   }, [filter, user]);
 
-  const loadPosts = () => {
-    let allPosts = db.getPosts();
+  const loadPosts = async () => {
+    let allPosts = await db.getPosts();
     if (filter === 'connections' && user) {
-      // Demo logic for connections
+      // Demo logic for connections - in real app backend handles this filter
       const connections = ['1', 'mentor_1', 'user_4', 'user_5'];
       allPosts = allPosts.filter(p => connections.includes(p.userId) || p.userId === user.id);
     }
@@ -57,7 +61,7 @@ const Feed: React.FC = () => {
 
     const newText = beforeText + before + selected + after + afterText;
     setNewPostContent(newText);
-    
+
     setTimeout(() => {
       textarea.focus();
       textarea.setSelectionRange(start + before.length, end + before.length);
@@ -69,9 +73,9 @@ const Feed: React.FC = () => {
     if (!user || !newPostContent.trim()) return;
 
     setIsPosting(true);
-    setTimeout(() => {
+    setTimeout(async () => {
       const media = mediaUrl ? [{ type: mediaType, url: mediaUrl }] : undefined;
-      db.addPost({
+      await db.addPost({
         userId: user.id,
         userName: user.name,
         userAvatar: user.avatar,
@@ -79,7 +83,7 @@ const Feed: React.FC = () => {
         content: newPostContent,
         media
       });
-      
+
       setNewPostContent('');
       setMediaUrl('');
       setShowMediaInput(false);
@@ -92,16 +96,16 @@ const Feed: React.FC = () => {
     }, 1200);
   };
 
-  const handleLike = (postId: string) => {
+  const handleLike = async (postId: string) => {
     if (!user) return;
-    db.likePost(postId, user.id);
+    await db.likePost(postId, user.id);
     loadPosts();
   };
 
-  const handleCommentSubmit = (postId: string) => {
+  const handleCommentSubmit = async (postId: string) => {
     if (!user || !activeCommentContent[postId]?.trim()) return;
 
-    db.addComment(postId, {
+    await db.addComment(postId, {
       userId: user.id,
       userName: user.name,
       userAvatar: user.avatar,
@@ -132,7 +136,7 @@ const Feed: React.FC = () => {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        
+
         {/* LEFT COLUMN: Profile & Favorites */}
         <aside className="lg:col-span-3 space-y-8 sticky top-28">
           {user ? (
@@ -146,7 +150,7 @@ const Feed: React.FC = () => {
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1 mb-6">
                   {user.role} • {user.department}
                 </p>
-                
+
                 <div className="w-full grid grid-cols-2 gap-4 border-t border-slate-50 pt-6">
                   <div className="text-center">
                     <div className="text-lg font-black text-slate-900">128</div>
@@ -195,13 +199,13 @@ const Feed: React.FC = () => {
         <main className="lg:col-span-6 space-y-8">
           <div className="flex items-center justify-between bg-white px-6 py-4 rounded-[1.5rem] border border-slate-100 shadow-sm">
             <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-xl">
-              <button 
+              <button
                 onClick={() => setFilter('all')}
                 className={`flex items-center gap-2 px-6 py-2 rounded-lg text-xs font-black transition-all ${filter === 'all' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
               >
                 <Globe size={14} /> Global
               </button>
-              <button 
+              <button
                 onClick={() => setFilter('connections')}
                 className={`flex items-center gap-2 px-6 py-2 rounded-lg text-xs font-black transition-all ${filter === 'connections' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
               >
@@ -228,7 +232,7 @@ const Feed: React.FC = () => {
                       {formatContent(newPostContent || "Type to preview...")}
                     </div>
                   ) : (
-                    <textarea 
+                    <textarea
                       ref={textareaRef}
                       className="w-full bg-slate-50 border border-slate-100 rounded-2xl p-5 text-sm font-medium outline-none focus:ring-4 focus:ring-blue-100 min-h-[140px] resize-none transition-all"
                       placeholder="Share a thought, project update, or career milestone..."
@@ -240,8 +244,8 @@ const Feed: React.FC = () => {
 
                 {showMediaInput && (
                   <div className="p-4 bg-slate-50 rounded-xl border border-dashed border-slate-200 animate-in slide-in-from-top-1">
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       placeholder="Paste Media URL (e.g. Unsplash or YouTube link)..."
                       className="w-full bg-white border border-slate-100 rounded-lg px-3 py-2 text-xs outline-none mb-2"
                       value={mediaUrl}
@@ -262,7 +266,7 @@ const Feed: React.FC = () => {
                     <button onClick={() => setShowMediaInput(!showMediaInput)} className={`p-2 transition-colors ${mediaUrl ? 'text-blue-600' : 'text-slate-400 hover:text-blue-600'}`} title="Media"><ImageIcon size={16} /></button>
                     <button onClick={() => setIsPreview(!isPreview)} className={`p-2 transition-colors ${isPreview ? 'text-blue-600' : 'text-slate-400 hover:text-blue-600'}`} title="Preview">{isPreview ? <EyeOff size={16} /> : <Eye size={16} />}</button>
                   </div>
-                  <button 
+                  <button
                     onClick={handlePostSubmit}
                     disabled={!newPostContent.trim() || isPosting}
                     className="px-8 py-3 bg-blue-600 text-white rounded-xl font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-100 hover:bg-blue-700 disabled:opacity-50 transition-all active:scale-95"
@@ -284,7 +288,7 @@ const Feed: React.FC = () => {
               posts.map((post) => {
                 const isLiked = user && post.likedBy.includes(user.id);
                 const isCommentsOpen = openCommentPostId === post.id;
-                
+
                 return (
                   <div key={post.id} className="bg-white rounded-[2.5rem] border border-slate-100 overflow-hidden shadow-sm hover:shadow-md transition-all animate-in fade-in slide-in-from-bottom-4 duration-500">
                     <div className="p-8 pb-4">
@@ -322,13 +326,13 @@ const Feed: React.FC = () => {
                       )}
 
                       <div className="flex items-center gap-6 pt-6 border-t border-slate-50">
-                        <button 
+                        <button
                           onClick={() => handleLike(post.id)}
                           className={`flex items-center gap-2 font-bold text-sm transition-colors ${isLiked ? 'text-red-500' : 'text-slate-400 hover:text-red-500'}`}
                         >
                           <Heart size={18} fill={isLiked ? 'currentColor' : 'none'} /> {post.likes}
                         </button>
-                        <button 
+                        <button
                           onClick={() => setOpenCommentPostId(isCommentsOpen ? null : post.id)}
                           className={`flex items-center gap-2 font-bold text-sm transition-colors ${isCommentsOpen ? 'text-blue-600' : 'text-slate-400 hover:text-blue-600'}`}
                         >
@@ -370,15 +374,15 @@ const Feed: React.FC = () => {
                           <div className="flex gap-3 items-center">
                             <img src={user.avatar} className="w-8 h-8 rounded-lg object-cover" />
                             <div className="flex-grow relative">
-                              <input 
-                                type="text" 
+                              <input
+                                type="text"
                                 placeholder="Add a comment..."
                                 className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-medium outline-none focus:ring-2 focus:ring-blue-100 pr-10"
                                 value={activeCommentContent[post.id] || ''}
                                 onChange={(e) => setActiveCommentContent(prev => ({ ...prev, [post.id]: e.target.value }))}
-                                onKeyDown={(e) => { if(e.key === 'Enter') handleCommentSubmit(post.id); }}
+                                onKeyDown={(e) => { if (e.key === 'Enter') handleCommentSubmit(post.id); }}
                               />
-                              <button 
+                              <button
                                 onClick={() => handleCommentSubmit(post.id)}
                                 disabled={!activeCommentContent[post.id]?.trim()}
                                 className="absolute right-2 top-1/2 -translate-y-1/2 text-blue-600 disabled:text-slate-300 hover:scale-110 transition-transform"

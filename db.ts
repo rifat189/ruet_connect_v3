@@ -1,252 +1,519 @@
 
-import { User, Job, Event, AppNotification, Post, Comment } from './types';
+import { User, Job, Event, MentorshipRequest, Post, Notice, Group, AppNotification } from './types';
 import { MOCK_USERS, MOCK_JOBS, MOCK_EVENTS } from './constants';
 
-const KEYS = {
-  USERS: 'ruet_db_users',
-  JOBS: 'ruet_db_jobs',
-  EVENTS: 'ruet_db_events',
-  POSTS: 'ruet_db_posts',
-  AUTH_USER: 'ruet_auth_user',
-  NOTIFICATIONS: 'ruet_db_notifications'
-};
+const API_URL = 'http://localhost:5000/api';
 
 export const db = {
   init: () => {
-    const existingUsers = localStorage.getItem(KEYS.USERS);
-    if (!existingUsers || !JSON.parse(existingUsers).some((u: any) => u.password)) {
-      localStorage.setItem(KEYS.USERS, JSON.stringify(MOCK_USERS));
-    }
-    if (!localStorage.getItem(KEYS.JOBS)) {
-      localStorage.setItem(KEYS.JOBS, JSON.stringify(MOCK_JOBS));
-    }
-    if (!localStorage.getItem(KEYS.EVENTS)) {
-      localStorage.setItem(KEYS.EVENTS, JSON.stringify(MOCK_EVENTS));
-    }
-    if (!localStorage.getItem(KEYS.POSTS)) {
-      const initialPosts: Post[] = [
-        {
-          id: 'p1',
-          userId: '1',
-          userName: 'Sarah Rahman',
-          userAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200&h=200',
-          userRole: 'Alumni',
-          content: 'Just finished a great tech talk about Cloud Infrastructure! It was amazing to see so many RUETians interested in distributed systems. 🚀 #RUETPride #CloudComputing',
-          timestamp: Date.now() - 3600000 * 5,
-          media: [{ type: 'image', url: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&q=80&w=600' }],
-          likes: 42,
-          likedBy: [],
-          comments: [
-            {
-              id: 'c1',
-              userId: 'mentor_1',
-              userName: 'Dr. Faisal Karim',
-              userAvatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200&h=200',
-              content: 'Excellent talk, Sarah! The future of backend is definitely in distributed systems.',
-              timestamp: Date.now() - 3600000 * 4
-            }
-          ]
-        },
-        {
-          id: 'p2',
-          userId: 'mentor_1',
-          userName: 'Dr. Faisal Karim',
-          userRole: 'Mentor',
-          userAvatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200&h=200',
-          content: 'Remember students: the foundation of engineering is curiosity. Keep asking "why". My office hours are open for mentorship sessions this Saturday.',
-          timestamp: Date.now() - 3600000 * 24,
-          likes: 156,
-          likedBy: [],
-          comments: []
-        }
-      ];
-      localStorage.setItem(KEYS.POSTS, JSON.stringify(initialPosts));
-    }
-    if (!localStorage.getItem(KEYS.NOTIFICATIONS)) {
-      const initialNotifications: AppNotification[] = [
-        {
-          id: 'n_mentorship_demo',
-          userId: '1',
-          title: 'New Mentorship Request',
-          message: 'Anika Tabassum (CSE 21) wants to connect for career guidance in ML.',
-          type: 'mentorship',
-          timestamp: Date.now() - 1000 * 60 * 5,
-          isRead: false,
-          link: '/mentorship'
-        },
-        {
-          id: 'n_demo',
-          userId: '1',
-          title: 'Career Update',
-          message: 'Your senior, Rashedul Islam (ETE 98), just posted a new career milestone at Intel.',
-          type: 'post',
-          timestamp: Date.now() - 1000 * 60 * 30,
-          isRead: false,
-          link: '/network'
-        }
-      ];
-      localStorage.setItem(KEYS.NOTIFICATIONS, JSON.stringify(initialNotifications));
+    // No-op for now
+  },
+
+  getUsers: async (): Promise<User[]> => {
+    try {
+      const res = await fetch(`${API_URL}/users`);
+      return await res.json();
+    } catch (e) {
+      console.error(e);
+      return [];
     }
   },
 
-  getUsers: (): User[] => JSON.parse(localStorage.getItem(KEYS.USERS) || '[]'),
-  getJobs: (): Job[] => JSON.parse(localStorage.getItem(KEYS.JOBS) || '[]'),
-  getEvents: (): Event[] => JSON.parse(localStorage.getItem(KEYS.EVENTS) || '[]'),
-  getPosts: (): Post[] => JSON.parse(localStorage.getItem(KEYS.POSTS) || '[]').sort((a: Post, b: Post) => b.timestamp - a.timestamp),
-  
-  getNotifications: (userId?: string): AppNotification[] => {
-    const all = JSON.parse(localStorage.getItem(KEYS.NOTIFICATIONS) || '[]') as AppNotification[];
-    if (userId) return all.filter(n => n.userId === userId).sort((a, b) => b.timestamp - a.timestamp);
-    return all;
-  },
-
-  addPost: (post: Omit<Post, 'id' | 'timestamp' | 'likes' | 'comments' | 'likedBy'>) => {
-    const all = db.getPosts();
-    const newPost: Post = {
-      ...post,
-      id: `post_${Date.now()}`,
-      timestamp: Date.now(),
-      likes: 0,
-      likedBy: [],
-      comments: []
-    };
-    localStorage.setItem(KEYS.POSTS, JSON.stringify([newPost, ...all]));
-    return newPost;
-  },
-
-  likePost: (postId: string, userId: string) => {
-    const all = db.getPosts();
-    const postIndex = all.findIndex(p => p.id === postId);
-    if (postIndex === -1) return;
-
-    const post = all[postIndex];
-    const userIndex = post.likedBy.indexOf(userId);
-
-    if (userIndex === -1) {
-      post.likedBy.push(userId);
-      post.likes += 1;
-    } else {
-      post.likedBy.splice(userIndex, 1);
-      post.likes -= 1;
+  getJobs: async (): Promise<Job[]> => {
+    try {
+      const res = await fetch(`${API_URL}/jobs`);
+      return await res.json();
+    } catch (e) {
+      console.error(e);
+      return [];
     }
-
-    localStorage.setItem(KEYS.POSTS, JSON.stringify(all));
-    return post;
   },
 
-  addComment: (postId: string, comment: Omit<Comment, 'id' | 'timestamp'>) => {
-    const all = db.getPosts();
-    const postIndex = all.findIndex(p => p.id === postId);
-    if (postIndex === -1) return;
-
-    const newComment: Comment = {
-      ...comment,
-      id: `comment_${Date.now()}`,
-      timestamp: Date.now()
-    };
-
-    all[postIndex].comments.push(newComment);
-    localStorage.setItem(KEYS.POSTS, JSON.stringify(all));
-    return newComment;
-  },
-
-  addNotification: (notif: Omit<AppNotification, 'id' | 'timestamp' | 'isRead'>) => {
-    const all = db.getNotifications();
-    const newNotif: AppNotification = {
-      ...notif,
-      id: `notif_${Date.now()}`,
-      timestamp: Date.now(),
-      isRead: false
-    };
-    localStorage.setItem(KEYS.NOTIFICATIONS, JSON.stringify([newNotif, ...all]));
-    return newNotif;
-  },
-
-  markNotificationRead: (id: string) => {
-    const all = db.getNotifications();
-    const updated = all.map(n => n.id === id ? { ...n, isRead: true } : n);
-    localStorage.setItem(KEYS.NOTIFICATIONS, JSON.stringify(updated));
-  },
-
-  clearAllNotifications: (userId: string) => {
-    const all = db.getNotifications();
-    const filtered = all.filter(n => n.userId !== userId);
-    localStorage.setItem(KEYS.NOTIFICATIONS, JSON.stringify(filtered));
-  },
-
-  login: (email: string, pass: string): User | null => {
-    const users = db.getUsers();
-    const user = users.find(u => 
-      u.email?.toLowerCase() === email.toLowerCase() && 
-      u.password === pass
-    );
-    
-    if (user) {
-      localStorage.setItem(KEYS.AUTH_USER, JSON.stringify(user));
-      return user;
+  getEvents: async (): Promise<Event[]> => {
+    try {
+      const res = await fetch(`${API_URL}/events`);
+      return await res.json();
+    } catch (e) {
+      console.error(e);
+      return [];
     }
-    return null;
   },
 
-  register: (user: Omit<User, 'id'>): User => {
-    const newUser = db.addUser(user);
-    localStorage.setItem(KEYS.AUTH_USER, JSON.stringify(newUser));
-    return newUser;
+  getPosts: async (): Promise<Post[]> => {
+    try {
+      const res = await fetch(`${API_URL}/posts`);
+      return await res.json();
+    } catch (e) {
+      console.error(e);
+      return [];
+    }
+  },
+
+
+
+  login: async (email: string, pass: string): Promise<{ user: User, token: string } | null> => {
+    try {
+      const res = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: pass })
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data.token) localStorage.setItem('token', data.token);
+      return data;
+    } catch (e) {
+      console.error(e);
+      return null;
+    }
+  },
+
+  register: async (user: Omit<User, 'id'>): Promise<{ user: User, token: string } | null> => {
+    try {
+      const res = await fetch(`${API_URL}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(user)
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data.token) localStorage.setItem('token', data.token);
+      return data;
+    } catch (e) {
+      console.error(e);
+      return null;
+    }
   },
 
   logout: () => {
-    localStorage.removeItem(KEYS.AUTH_USER);
+    localStorage.removeItem('token');
   },
 
-  getCurrentUser: (): User | null => {
-    const userStr = localStorage.getItem(KEYS.AUTH_USER);
-    return userStr ? JSON.parse(userStr) : null;
-  },
-
-  addJob: (job: Omit<Job, 'id'>) => {
-    const jobs = db.getJobs();
-    const newJob = { ...job, id: `job_${Date.now()}` };
-    const updated = [newJob, ...jobs];
-    localStorage.setItem(KEYS.JOBS, JSON.stringify(updated));
-    return newJob;
-  },
-
-  addEvent: (event: Omit<Event, 'id'>) => {
-    const events = db.getEvents();
-    const newEvent = { ...event, id: `event_${Date.now()}` };
-    const updated = [newEvent, ...events];
-    localStorage.setItem(KEYS.EVENTS, JSON.stringify(updated));
-    return newEvent;
-  },
-
-  addUser: (user: Omit<User, 'id'>): User => {
-    const users = db.getUsers();
-    const newUser = { ...user, id: `user_${Date.now()}` };
-    const updated = [...users, newUser];
-    localStorage.setItem(KEYS.USERS, JSON.stringify(updated));
-    return newUser;
-  },
-
-  updateUser: (updatedUser: User) => {
-    const users = db.getUsers();
-    const updated = users.map(u => u.id === updatedUser.id ? updatedUser : u);
-    localStorage.setItem(KEYS.USERS, JSON.stringify(updated));
-    
-    const current = db.getCurrentUser();
-    if (current && current.id === updatedUser.id) {
-      localStorage.setItem(KEYS.AUTH_USER, JSON.stringify(updatedUser));
+  getCurrentUser: async (): Promise<User | null> => {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_URL}/auth/me`, {
+        headers: { 'x-auth-token': token }
+      });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (e) {
+      return null;
     }
   },
 
-  deleteJob: (id: string) => {
-    const jobs = db.getJobs();
-    const updated = jobs.filter(j => j.id !== id);
-    localStorage.setItem(KEYS.JOBS, JSON.stringify(updated));
+  addJob: async (job: Omit<Job, 'id'>) => {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    const res = await fetch(`${API_URL}/jobs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-auth-token': token
+      },
+      body: JSON.stringify(job)
+    });
+    return await res.json();
   },
 
-  deleteUser: (id: string) => {
-    const users = db.getUsers();
-    const updated = users.filter(u => u.id !== id);
-    localStorage.setItem(KEYS.USERS, JSON.stringify(updated));
+  async joinEvent(eventId: string): Promise<Event | null> {
+    const res = await fetch(`${API_URL}/events/${eventId}/join`, {
+      method: 'POST',
+      headers: { 'x-auth-token': localStorage.getItem('token') || '' }
+    });
+    if (!res.ok) return null;
+    const event = await res.json();
+    return { ...event, id: event._id };
+  },
+
+  addEvent: async (event: Omit<Event, 'id'>) => {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    const res = await fetch(`${API_URL}/events`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-auth-token': token
+      },
+      body: JSON.stringify(event)
+    });
+    return await res.json();
+  },
+
+  applyToJob: async (jobId: string) => {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    const res = await fetch(`${API_URL}/jobs/${jobId}/apply`, {
+      method: 'POST',
+      headers: { 'x-auth-token': token }
+    });
+    return await res.json();
+  },
+
+  getAppliedJobs: async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return [];
+    const res = await fetch(`${API_URL}/jobs/applied`, {
+      headers: { 'x-auth-token': token }
+    });
+    if (!res.ok) return [];
+    return await res.json();
+  },
+
+  getMentors: async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return [];
+    const res = await fetch(`${API_URL}/mentorship/mentors`, {
+      headers: { 'x-auth-token': token }
+    });
+    if (!res.ok) return [];
+    return await res.json();
+  },
+
+  becomeMentor: async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    const res = await fetch(`${API_URL}/mentorship/become`, {
+      method: 'POST',
+      headers: { 'x-auth-token': token }
+    });
+    return await res.json();
+  },
+
+  requestMentorship: async (mentorId: string, topic: string, message: string) => {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    const res = await fetch(`${API_URL}/mentorship/request`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-auth-token': token
+      },
+      body: JSON.stringify({ mentorId, topic, message })
+    });
+    return await res.json();
+  },
+
+  getMentorshipRequests: async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return { incoming: [], outgoing: [] };
+    const res = await fetch(`${API_URL}/mentorship/requests`, {
+      headers: { 'x-auth-token': token }
+    });
+    if (!res.ok) return { incoming: [], outgoing: [] };
+    return await res.json();
+  },
+
+  acceptMentorship: async (requestId: string) => {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    const res = await fetch(`${API_URL}/mentorship/requests/${requestId}/accept`, {
+      method: 'POST',
+      headers: { 'x-auth-token': token }
+    });
+    return await res.json();
+  },
+
+  rejectMentorship: async (requestId: string) => {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    const res = await fetch(`${API_URL}/mentorship/requests/${requestId}/reject`, {
+      method: 'POST',
+      headers: { 'x-auth-token': token }
+    });
+    return await res.json();
+  },
+
+  addPost: async (post: Omit<Post, 'id' | 'timestamp' | 'likes' | 'comments' | 'likedBy'>) => {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    const res = await fetch(`${API_URL}/posts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-auth-token': token
+      },
+      body: JSON.stringify(post)
+    });
+    return await res.json();
+  },
+
+  likePost: async (postId: string, userId: string) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    await fetch(`${API_URL}/posts/like/${postId}`, {
+      method: 'PUT',
+      headers: { 'x-auth-token': token }
+    });
+  },
+
+  addComment: async (postId: string, comment: any) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    await fetch(`${API_URL}/posts/comment/${postId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-auth-token': token
+      },
+      body: JSON.stringify(comment)
+    });
+  },
+
+  connectUser: async (userId: string) => {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    const res = await fetch(`${API_URL}/users/connect/${userId}`, {
+      method: 'POST',
+      headers: { 'x-auth-token': token }
+    });
+    return await res.json();
+  },
+
+  getPendingConnections: async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return [];
+    try {
+      const res = await fetch(`${API_URL}/users/requests/pending`, {
+        headers: { 'x-auth-token': token }
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.map((r: any) => ({
+        ...r,
+        id: r.id || r._id,
+        sender: {
+          ...r.sender,
+          id: r.sender.id || r.sender._id
+        }
+      }));
+    } catch (e) {
+      console.error(e);
+      return [];
+    }
+  },
+
+  getOutgoingRequests: async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return [];
+    try {
+      const res = await fetch(`${API_URL}/users/requests/outgoing`, {
+        headers: { 'x-auth-token': token }
+      });
+      if (!res.ok) return [];
+      return await res.json();
+    } catch (e) {
+      console.error(e);
+      return [];
+    }
+  },
+
+  acceptConnection: async (requestId: string) => {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    const res = await fetch(`${API_URL}/users/accept/${requestId}`, {
+      method: 'POST',
+      headers: { 'x-auth-token': token }
+    });
+    return await res.json();
+  },
+
+  rejectConnection: async (requestId: string) => {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    const res = await fetch(`${API_URL}/users/reject/${requestId}`, {
+      method: 'POST',
+      headers: { 'x-auth-token': token }
+    });
+    return await res.json();
+  },
+
+  getConnections: async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return [];
+    try {
+      const res = await fetch(`${API_URL}/users/connections`, {
+        headers: { 'x-auth-token': token }
+      });
+      if (!res.ok) return [];
+      return await res.json();
+    } catch (e) {
+      console.error(e);
+      return [];
+    }
+  },
+
+  // Stubs
+  addNotification: async (n: any) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    try {
+      await fetch(`${API_URL}/notifications`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token
+        },
+        body: JSON.stringify({
+          userId: n.userId,
+          type: n.type || 'general',
+          content: n.message || n.title, // Map message/title to content
+          relatedId: n.relatedId
+        })
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  },
+
+  getNotifications: async (userId?: string): Promise<AppNotification[]> => {
+    const token = localStorage.getItem('token');
+    if (!token) return [];
+    try {
+      const res = await fetch(`${API_URL}/notifications`, {
+        headers: { 'x-auth-token': token }
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      // Map backend notification to AppNotification interface if needed
+      // Assuming AppNotification has { id, title? (map content), type, isRead, timestamp? (createdAt) }
+      return data.map((n: any) => ({
+        id: n.id,
+        title: n.content,
+        message: n.content,
+        type: n.type,
+        isRead: n.isRead,
+        timestamp: n.createdAt,
+        link: n.relatedId ? `/profile/${n.relatedId}` : undefined // Simple heuristic
+      }));
+    } catch (e) {
+      console.error(e);
+      return [];
+    }
+  },
+
+  markNotificationRead: async (id: string) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    await fetch(`${API_URL}/notifications/${id}/read`, {
+      method: 'PUT',
+      headers: { 'x-auth-token': token }
+    });
+  },
+
+  clearAllNotifications: async (uid: string) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    await fetch(`${API_URL}/notifications`, {
+      method: 'DELETE',
+      headers: { 'x-auth-token': token }
+    });
+  },
+
+  deleteJob: async (id: string) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    await fetch(`${API_URL}/jobs/${id}`, {
+      method: 'DELETE',
+      headers: { 'x-auth-token': token }
+    });
+  },
+
+  deleteUser: async (id: string) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    await fetch(`${API_URL}/users/${id}`, {
+      method: 'DELETE',
+      headers: { 'x-auth-token': token }
+    });
+  },
+
+  updateUser: async (u: any) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_URL}/users/${u.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token
+        },
+        body: JSON.stringify(u)
+      });
+      return await res.json();
+    } catch (e) {
+      console.error(e);
+    }
+  },
+  async getNotices(): Promise<Notice[]> {
+    const res = await fetch(`${API_URL}/notices`, {
+      headers: {
+        'x-auth-token': localStorage.getItem('token') || ''
+      }
+    });
+    if (!res.ok) return [];
+    const notices = await res.json();
+    return notices.map((n: any) => ({ ...n, id: n._id }));
+  },
+
+  async addNotice(notice: Omit<Notice, 'id' | 'createdAt' | 'postedBy' | 'postedByUserId'>): Promise<Notice> {
+    const res = await fetch(`${API_URL}/notices`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-auth-token': localStorage.getItem('token') || ''
+      },
+      body: JSON.stringify(notice)
+    });
+    const newNotice = await res.json();
+    return { ...newNotice, id: newNotice._id };
+  },
+
+  async getGroups(): Promise<Group[]> {
+    const res = await fetch(`${API_URL}/groups`, {
+      headers: {
+        'x-auth-token': localStorage.getItem('token') || ''
+      }
+    });
+    if (!res.ok) return [];
+    const groups = await res.json();
+    return groups.map((g: any) => ({ ...g, id: g._id }));
+  },
+
+  async createGroup(group: Partial<Group>): Promise<Group> {
+    const res = await fetch(`${API_URL}/groups`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-auth-token': localStorage.getItem('token') || ''
+      },
+      body: JSON.stringify(group)
+    });
+    const newGroup = await res.json();
+    return { ...newGroup, id: newGroup._id };
+  },
+
+  async joinGroup(groupId: string): Promise<Group | null> {
+    const res = await fetch(`${API_URL}/groups/${groupId}/join`, {
+      method: 'POST',
+      headers: { 'x-auth-token': localStorage.getItem('token') || '' }
+    });
+    if (!res.ok) return null;
+    const group = await res.json();
+    return { ...group, id: group._id };
+  },
+
+  async getGroupPosts(groupId: string): Promise<Post[]> {
+    const res = await fetch(`${API_URL}/groups/${groupId}/posts`, {
+      headers: { 'x-auth-token': localStorage.getItem('token') || '' }
+    });
+    if (!res.ok) return [];
+    const posts = await res.json();
+    return posts.map((p: any) => ({
+      ...p,
+      id: p._id,
+      timestamp: new Date(p.createdAt).getTime()
+    }));
   }
 };
