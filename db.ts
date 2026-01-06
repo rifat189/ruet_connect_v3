@@ -2,7 +2,7 @@
 import { User, Job, Event, MentorshipRequest, Post, Notice, Group, AppNotification } from './types';
 import { MOCK_USERS, MOCK_JOBS, MOCK_EVENTS } from './constants';
 
-const API_URL = import.meta.env.VITE_API_URL || import.meta.env.API_URL || 'https://ruetconnect.vercel.app';
+const API_URL = (import.meta.env.VITE_API_URL || 'https://ruetconnect.vercel.app')+'/api';
 
 export const db = {
   init: () => {
